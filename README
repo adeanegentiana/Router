@@ -1,0 +1,66 @@
+Tema 1 - Router
+
+Functii auxiliare:
+	- parseRoutingTable
+		Am citit din fisierul dat ca argv[1] in main tabela de rutare, in timp
+		ce am numarat cate elemente adaug in ea pentru a returna la final
+		dimensiunea tabelei.
+	- compare
+		Aceasta functie este folosita in main de catre qsort pentru a sorta
+		tabela de rutare dupa prefix.
+	- findBestRoute
+		Am implementat cautarea binara pentru a gasi cat mai rapid intrarea cea
+		mai specifica din tabela de rutare. Odata ce am gasit aceasta intrare,
+		am returnat indexul din vector (vectorul fiind sortat atunci cand apelez
+		aceasta functie) pentru a avea acces la toate campurile din structura de
+		la acel index. Daca nu gasesc nicio intrare, returnez -1.
+	- getArpEntry
+		Pentru ca tabela arp este destul de mica, mi-am permis sa o parcurg cu
+		un simplu for si sa verific daca adresa ip data ca parametru este egala
+		cu vreo adresa ip din tabela.
+Main:
+	Am alocat tabela de rutare si am parsat-o apeland functia parseRoutingTable
+	descrisa mai sus. Am salvat dimensiunea tabelei in routingTableSize.
+	Am alocat si tabela arp si am setat dimensiunea sa initiala la 0 pentru ca
+	aceasta tabela nu este statica, isi va schimba mereu dimensiunea si
+	continutul.
+	Am declarat pachetul si am initializat o coada.
+
+	while(1):
+		Am extras headerul de ethernet pentru ca acesta este comun pentru
+		pachetele ip si arp si ma ajuta sa-mi structurez codul in 2 cazuri, in
+		functie de tip (ETHERTYPE_IP / ETHERTYPE_ARP).
+		Am inceput cu cazul in care primesc un pachet IP.
+			Extrag headerul IP si imediat verific daca am primit pentru router
+			un pachet de tip ICMP ECHO REQUEST. Trimit ECHO REPLY in caz
+			afirmativ.
+			Altfel, dirijez pachetul mai departe.
+			Apelez functia ip_checksum pentru a verifica daca check este corect.
+			In caz contrar, dropez pachetul si trec la urmatoarea iteratie.
+			Apoi, verific "time to leave" si daca ttl <= 1, trimit un mesaj icmp
+			time exceeded, dupa care arunc pachetul.
+			Daca totul a mers ok pana aici, apelez functia findBestRoute
+			(descrisa mai sus), si in cazul in care primesc -1, trimit un pachet
+			icmp destination unreachable.
+			Altfel, trec mai departe si decrementez ttl, apoi recalculez check.
+			Caut in tabela arp adresa MAC a next hop-ului. Daca nu o gasesc, fac
+			o copie a pachetului pe care o bag in coada si trimit o cerere arp
+			broadcast (ff:ff:ff:ff:ff:ff), dupa care arunc pachetul initial.
+			Daca gasesc adresa MAC a next hop-ului, copiez in destinatia
+			headerului ethernet acest MAC, dupa care trimit pachetul pe
+			interfata best route.
+		Atunci cand primesc un pachet ARP, am 2 cazuri:
+			- primesc un pachet ARP REQUEST
+				Trimit un pachet ARP REPLY, schimband sursa si destinatia intre
+				ele la apelul functiei get_interface_mac.
+			- primesc un pachet ARP REPLY
+				Nu verific daca am deja datele din reply in tabela mea arp
+				pentru ca nu as primi niciodata un pachet reply fara sa fi
+				trimis un request. Este evident ca reply-ul a venit pentru ca
+				l-am solicitat si de aceea updatez tabela arp imediat atunci
+				cand primesc un mesaj de acest fel.
+				Si pentru ca acum am adaugat o noua adresa mac in tabela, pot sa
+				scot pachetul bagat anterior din coada si din nou caut best
+				route in tabela de rutare pentru a avea acces la next hop.
+				La final, cresc dimensiunea tabelei arp pentru ca am mai adaugat
+				inca o adresa in ea.
